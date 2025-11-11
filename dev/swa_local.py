@@ -20,7 +20,7 @@ LOCAL_SAVE_PATH = "/raid/.tnp/fineweb_swhaili_translated"
 FINAL_PARQUET_PATH = "/raid/.tnp/fineweb_swhaili_final.parquet"
 
 # API & Concurrency Settings
-API_ENDPOINT = "http://10.2.201.47:8000/v1/chat/completions"
+API_ENDPOINT = "http://localhost:9001/v1/chat/completions"
 HEADERS = {
     "Content-Type": "application/json",
     # "Authorization": "rao2025"
