@@ -11,13 +11,13 @@ from huggingface_hub import login
 from datasets import load_dataset
 from datasets import load_from_disk, concatenate_datasets
 
+LANG = os.getenv("LANG", "swa")
 DATASET_NAME = os.getenv("DATASET_NAME", "HuggingFaceFW/fineweb-edu")
 SUBSET_NAME = os.getenv("SUBSET_NAME", "sample-10BT")
 SPLIT = os.getenv("SPLIT", "train")
 TEXT_COLUMN = os.getenv("TEXT_COLUMN", "text")
 RAW_DATA_PATH = os.getenv("RAW_DATA_PATH", "/raid/.tnp/fineweb_edu_raw")
-LOCAL_SAVE_PATH = os.getenv("LOCAL_SAVE_PATH", "/raid/.tnp/fineweb_edu_translated")
-FINAL_PARQUET_PATH = os.getenv("FINAL_PARQUET_PATH", "/raid/.tnp/fineweb_edu_final.parquet")
+LOCAL_SAVE_PATH = os.getenv("LOCAL_SAVE_PATH", f"/raid/.tnp/{LANG}")
 
 API_ENDPOINT = os.getenv("API_ENDPOINT", "http://localhost:8000/v1/chat/completions")
 HEADERS = {
@@ -27,9 +27,9 @@ HEADERS = {
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "64"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "5"))
 BASE_DELAY = int(os.getenv("BASE_DELAY", "2"))
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "64"))
 HEALTH_CHECK_PORT = int(os.getenv("HEALTH_CHECK_PORT", "8000"))
-PROMPT_TEMPLATE = str(os.getenv("PROMPT_TEMPLATE", "Translate"))
+PROMPT_TEMPLATE = str(os.getenv("PROMPT_TEMPLATE", "swahili"))
 MODEL_ID = str(os.getenv("MODEL_ID", "DeepSeek-V3-Terminus"))
 
 log_dir = "logs"
@@ -48,13 +48,12 @@ logger = logging.getLogger(__name__)
 
 def translate_single_text(text, api_endpoint, headers):
     messages = [
-        {"role": "user", "content": f"{PROMPT_TEMPLATE}'{text}'"}
+        {"role": "user", "content": f"Translate this text to {LANG}: Only provide the translation, no explanations:'{text}'"}
     ]
-
     payload = {
         "model": MODEL_ID,
         "messages": messages,
-        "max_tokens": 1024,
+        "max_tokens": 4096,
         "temperature": 0.1
     }
     
@@ -109,20 +108,18 @@ def translate_batch_via_api(batch, api_endpoint, headers, text_column):
 
 # --- Function to run the job with CHUNKING and resuming ---
 def run_translation_job(
-        full_dataset, api_endpoint, headers, text_column, local_save_path, final_parquet_path, chunk_size):
+        full_dataset, api_endpoint, headers, text_column, local_save_path, chunk_size):
     
     total_examples = len(full_dataset)
     os.makedirs(local_save_path, exist_ok=True)
     
     # Find existing checkpoints (chunks that were already translated)
-    checkpoint_files = sorted(glob.glob(os.path.join(local_save_path, "chunk_*.arrow")))
+    checkpoint_files = sorted(glob.glob(os.path.join(local_save_path, "chunk_*.paraquet")))
     
-    translated_chunks = []
     if checkpoint_files:
         # Load existing chunks to correctly determine the start index
-        translated_chunks = [load_from_disk(f) for f in checkpoint_files]
-        start_index = len(translated_chunks) * chunk_size
-        print(f"RESUMING: Found {len(translated_chunks)} checkpoint chunks.")
+        start_index = len(checkpoint_files) * chunk_size
+        print(f"RESUMING: Found {len(checkpoint_files)} checkpoint chunks.")
         print(f"Total examples completed: {start_index}. Starting translation from index {start_index}.")
     else:
         start_index = 0
@@ -135,7 +132,7 @@ def run_translation_job(
         chunk_end = min((i + 1) * chunk_size, total_examples)
         
         # Determine the file path for the current chunk's checkpoint
-        chunk_file_name = os.path.join(local_save_path, f"chunk_{i:04d}.arrow")
+        chunk_file_name = os.path.join(local_save_path, f"chunk_{i:04d}.parquet")
         
         if os.path.exists(chunk_file_name):
             # If the checkpoint file exists, skip processing
@@ -156,34 +153,12 @@ def run_translation_job(
         )
         
         # Save the translated chunk as a checkpoint
-        translated_chunk.save_to_disk(chunk_file_name)
-        print(f"Successfully saved checkpoint to: {chunk_file_name}")
+        translated_chunk.to_parquet(chunk_file_name)
+        print(f"Successfully saved chunk to: {chunk_file_name}")
 
     # --- Final Step: Merge all translated chunks and save final Parquet file ---
     print("\n--- All chunks processed. Merging final dataset ---")
     
-    # Reload all saved chunks 
-    final_checkpoint_files = sorted(glob.glob(os.path.join(local_save_path, "chunk_*.arrow")))
-    
-    if not final_checkpoint_files:
-        print("Error: No translated chunks found to merge.")
-        return
-
-    # Load all individual translated chunks
-    all_translated_chunks = [load_from_disk(f) for f in final_checkpoint_files]
-    
-    # Concatenate them into a single final dataset object
-    final_translated_dataset = concatenate_datasets(all_translated_chunks)
-
-    print(f"Final dataset merged: {len(final_translated_dataset)} examples.")
-    
-    # EXPORT TO PARQUET
-    print(f"Exporting final merged dataset to Parquet format at: {final_parquet_path}")
-    final_translated_dataset.to_parquet(final_parquet_path)
-    print("Export complete.")
-
-
-# --- Main Execution Block ---
 
 # 1. Check if raw data exists locally. If not, download and save it.
 if os.path.exists(RAW_DATA_PATH):
@@ -204,7 +179,6 @@ run_translation_job(
     HEADERS, 
     TEXT_COLUMN, 
     LOCAL_SAVE_PATH,
-    FINAL_PARQUET_PATH,
     CHUNK_SIZE
 )
 
