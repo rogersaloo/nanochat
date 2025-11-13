@@ -5,6 +5,7 @@ import time
 import concurrent.futures
 import glob 
 import logging
+from tqdm import tqdm
 
 from huggingface_hub import login
 # login()
@@ -29,7 +30,6 @@ MAX_RETRIES = int(os.getenv("MAX_RETRIES", "5"))
 BASE_DELAY = int(os.getenv("BASE_DELAY", "2"))
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "64"))
 HEALTH_CHECK_PORT = int(os.getenv("HEALTH_CHECK_PORT", "8000"))
-PROMPT_TEMPLATE = str(os.getenv("PROMPT_TEMPLATE", "swahili"))
 MODEL_ID = str(os.getenv("MODEL_ID", "DeepSeek-V3-Terminus"))
 
 log_dir = "logs"
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 def translate_single_text(text, api_endpoint, headers):
     messages = [
-        {"role": "user", "content": f"Translate this text to {LANG}: Only provide the translation, no explanations:'{text}'"}
+        {"role": "user", "content": f"Translate this text to {LANG} language: Only provide the translation, no explanations:'{text}'"}
     ]
     payload = {
         "model": MODEL_ID,
@@ -63,7 +63,7 @@ def translate_single_text(text, api_endpoint, headers):
         delay = BASE_DELAY * (2 ** attempt)
         
         try:
-            response = requests.post(api_endpoint, headers=headers, json=payload, timeout=600)
+            response = requests.post(api_endpoint, headers=headers, json=payload, timeout=6000)
             response.raise_for_status()
             
             result = response.json()
@@ -126,7 +126,7 @@ def run_translation_job(
         print("STARTING NEW JOB: No prior checkpoints found.")
     
     # Loop through the dataset in chunks
-    for i in range(start_index // chunk_size, (total_examples + chunk_size - 1) // chunk_size):
+    for i in tqdm(range(start_index // chunk_size, (total_examples + chunk_size - 1) // chunk_size)):
         
         chunk_start = i * chunk_size
         chunk_end = min((i + 1) * chunk_size, total_examples)
