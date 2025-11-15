@@ -4,5 +4,5 @@ __pycache__/
 rustbpe/target/
 dev-ignore/
 wandb
-.env
+*.env*
 logs

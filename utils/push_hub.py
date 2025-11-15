@@ -13,7 +13,7 @@ class DataSetProcessor:
         self.repo_id = repo_id
         
         self.new_column_order = [
-            'text', f'text_swahili', 'id', 'dump', 'url', 'file_path', 
+            'text', 'text_swahili', 'id', 'dump', 'url', 'file_path', 
             'language', 'language_score', 'token_count', 'score', 'int_score'
         ]
         
@@ -48,9 +48,9 @@ class DataSetProcessor:
 
 
 if __name__ == '__main__':
-    LANG = "luo"
-    REPO_ID = f"rao254/test-swa"
-    PARQUET_DIR = f"/raid/.tnp/swa/"
+    LANG = "swa"
+    REPO_ID = f"rao254/test-{LANG}"
+    PARQUET_DIR = f"/raid/.tnp/{LANG}/"
     data = DataSetProcessor(parquet_dir=PARQUET_DIR, repo_id=REPO_ID, lang=LANG)   
     data.load_prep_datasets()
     data.push_data()
