@@ -1,0 +1,47 @@
+services:
+  translator:
+    build: .
+    container_name: translator
+    volumes:
+      - /raid/.tnp:/raid/.tnp
+      - /raid/logs:/app/logs
+    env_file:
+      - .env.swa
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - translation-network
+  
+  translator-l:
+    build: .
+    container_name: translator-l
+    volumes:
+      - /raid/.tnp:/raid/.tnp
+      - /raid/logs:/app/logs
+    env_file:
+      - .env.luo
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - translation-network
+
+  translator-sh:
+    build: .
+    container_name: translator-sh
+    volumes:
+      - /raid/.tnp:/raid/.tnp
+      - /raid/logs:/app/logs
+    env_file:
+      - .env.sheng
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - translation-network
+
+
+networks:
+  translation-network:
+    driver: bridge
